@@ -1,9 +1,16 @@
 # Quickstart
 
-
 ## Manual Mask Extraction
 
 Crop videos to a region of interest and black out specific areas with hand-drawn shapes. No AI involved — fast and deterministic. Supports both rectangles and irregular polygons.
+
+Set up the environment by running:
+
+`conda create -n video-mask python=3.9`
+
+`conda activate video-mask`
+
+`pip install -r requirements.txt`
 
 ### Step 1 — Annotate
 
