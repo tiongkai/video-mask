@@ -18,7 +18,9 @@ Usage (run from repo root):
 import argparse
 import json
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import cv2
@@ -29,22 +31,62 @@ DEFAULT_VIDEOS_DIR = REPO_ROOT / "mask_extraction_samples"
 DEFAULT_CONFIG = Path(__file__).parent / "config.json"
 DEFAULT_OUTPUT_DIR = Path(__file__).parent / "outputs"
 
-# Prefer ffmpeg binaries that have libx264 over the conda one
-_FFMPEG_CANDIDATES = ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "ffmpeg"]
+# Extra Windows locations where ffmpeg is commonly installed
+_WIN_FFMPEG_HINTS = [
+    r"C:\ffmpeg\bin\ffmpeg.exe",
+    r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+    r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+]
 
 
 def _find_ffmpeg() -> str:
-    """Return the first ffmpeg binary that supports libx264, else 'ffmpeg'."""
-    for candidate in _FFMPEG_CANDIDATES:
+    """
+    Find an ffmpeg binary that has libx264 support.
+    Searches PATH first (via shutil.which), then common Windows install paths,
+    then known Linux paths.  Raises SystemExit with a helpful message if none
+    is found.
+    """
+    candidates = []
+
+    # 1. PATH lookup (works on all platforms)
+    found_in_path = shutil.which("ffmpeg")
+    if found_in_path:
+        candidates.append(found_in_path)
+
+    # 2. Platform-specific extras
+    if sys.platform == "win32":
+        candidates += _WIN_FFMPEG_HINTS
+    else:
+        candidates += ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+
+    for candidate in candidates:
         try:
             result = subprocess.run(
-                [candidate, "-encoders"], capture_output=True, text=True
+                [candidate, "-encoders"],
+                capture_output=True, text=True,
             )
             if "libx264" in result.stdout:
                 return candidate
-        except FileNotFoundError:
+            # Binary found but no libx264 — still usable as a fallback
+            if result.returncode == 0 and candidate == candidates[0]:
+                fallback = candidate
+        except (FileNotFoundError, OSError):
             continue
-    return "ffmpeg"
+
+    # No libx264, but maybe we found something usable
+    try:
+        return fallback       # type: ignore[possibly-undefined]
+    except NameError:
+        pass
+
+    print(
+        "\nERROR: ffmpeg not found.\n"
+        "Install ffmpeg and make sure it is on your PATH:\n"
+        "  Windows : https://www.gyan.dev/ffmpeg/builds/  (add bin/ to PATH)\n"
+        "  Linux   : sudo apt install ffmpeg\n"
+        "  macOS   : brew install ffmpeg\n"
+    )
+    sys.exit(1)
 
 
 FFMPEG = _find_ffmpeg()
@@ -143,7 +185,14 @@ def process_video(video_path: Path, crop: list, masks: list, output_path: Path) 
         str(output_path),
     ]
 
-    ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    # On Windows, suppress the console window that ffmpeg would otherwise open
+    _kwargs = {}
+    if sys.platform == "win32":
+        _kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+    ffmpeg_proc = subprocess.Popen(
+        ffmpeg_cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **_kwargs
+    )
 
     frame_idx = 0
     pipe_broken = False
@@ -196,7 +245,7 @@ def process_video(video_path: Path, crop: list, masks: list, output_path: Path) 
     ffmpeg_proc.wait()
     if pipe_broken or ffmpeg_proc.returncode != 0:
         err = stderr.decode(errors="replace").strip().splitlines()
-        print(f"  ERROR: ffmpeg failed —")
+        print("  ERROR: ffmpeg failed —")
         for line in err[-10:]:
             print(f"    {line}")
         return False
