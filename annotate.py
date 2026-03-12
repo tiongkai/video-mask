@@ -199,7 +199,8 @@ def phase1_crop(window, video_path, existing_crop=None):
         ], color=(200, 220, 255))
 
         cv2.imshow(window, show)
-        key = cv2.waitKey(20) & 0xFF
+        raw_key = cv2.waitKey(20)
+        key = raw_key & 0xFF
 
         if key in (13, 32):       # Enter / Space — confirm
             if pending:
@@ -220,9 +221,9 @@ def phase1_crop(window, video_path, existing_crop=None):
             cap.release()
             return "QUIT", None
         # Frame navigation
-        elif key in (81, 2):      # left arrow
+        elif key in (81, 2) or raw_key == 2424832:   # left arrow (Linux / Windows)
             seek(cur_idx - 1)
-        elif key in (83, 3):      # right arrow
+        elif key in (83, 3) or raw_key == 2555904:  # right arrow (Linux / Windows)
             seek(cur_idx + 1)
         elif key == ord(','):
             seek(cur_idx - jump_med)
