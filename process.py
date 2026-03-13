@@ -267,8 +267,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def main(args=None):
+    if args is None:
+        args = parse_args()
 
     if not args.config.exists():
         print(f"Config not found: {args.config}")

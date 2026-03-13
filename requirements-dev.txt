@@ -1,0 +1,2 @@
+# Dev / packaging dependencies — not required at runtime
+pyinstaller>=6.0

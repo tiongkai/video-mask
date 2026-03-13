@@ -400,8 +400,9 @@ def _save(config, path: Path):
     print(f"  [saved] {path}")
 
 
-def main():
-    args = parse_args()
+def main(args=None):
+    if args is None:
+        args = parse_args()
     videos_dir  = args.videos_dir
     config_path = args.config
 
